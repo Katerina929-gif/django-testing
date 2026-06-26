@@ -2,25 +2,24 @@
 
 from datetime import datetime, timedelta
 
-import pytest
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
+import pytest
 
 from news.models import Comment, News
 
 
+@pytest.fixture(autouse=True)
+def enable_db_access_for_all_tests(db):
+    """Автоматически открывает доступ к базе данных для всех тестов."""
+    pass
+
+
 @pytest.fixture
-def news(db):
+def news():
     """Создает тестовую новость."""
-    _ = db
     return News.objects.create(title='Заголовок', text='Текст новости')
-
-
-@pytest.fixture
-def news_pk_for_args(news):
-    """Возвращает ID новости для передачи аргументом в reverse()."""
-    return (news.pk,)
 
 
 @pytest.fixture
@@ -37,14 +36,14 @@ def not_author(django_user_model):
 
 @pytest.fixture
 def author_client(author, client):
-    """Клиент, авторизованный под автором комментария."""
+    """Возвращает клиент, авторизованный под автором комментария."""
     client.force_login(author)
     return client
 
 
 @pytest.fixture
 def not_author_client(not_author, client):
-    """Клиент, авторизованный под сторонним пользователем."""
+    """Возвращает клиент, авторизованный под чужим пользователем."""
     client.force_login(not_author)
     return client
 
@@ -60,25 +59,17 @@ def comment(author, news):
 
 
 @pytest.fixture
-def comment_id_for_args(comment):
-    """Возвращает ID комментария для передачи в reverse()."""
-    return (comment.id,)
-
-
-@pytest.fixture
-def news_list(db):
+def news_list():
     """Создает пачку новостей, превышающую лимит главной страницы."""
-    _ = db
     today = datetime.today()
-    all_news = [
+    News.objects.bulk_create(
         News(
             title=f'Новость {index}',
             text='Текст.',
             date=today - timedelta(days=index)
         )
         for index in range(settings.NEWS_COUNT_ON_HOME_PAGE + 1)
-    ]
-    return News.objects.bulk_create(all_news)
+    )
 
 
 @pytest.fixture
@@ -87,14 +78,14 @@ def comments_list(news, author):
     now = timezone.now()
     comments = []
     for index in range(10):
-        comment = Comment.objects.create(
+        comment_obj = Comment.objects.create(
             news=news,
             author=author,
             text=f'Текст {index}',
         )
-        comment.created = now + timedelta(days=index)
-        comment.save()
-        comments.append(comment)
+        comment_obj.created = now + timedelta(days=index)
+        comment_obj.save()
+        comments.append(comment_obj)
     return comments
 
 
@@ -105,12 +96,42 @@ def detail_url(news):
 
 
 @pytest.fixture
-def form_data():
-    """Валидные данные формы комментария."""
-    return {'text': 'Новый текст комментария'}
-
-
-@pytest.fixture
 def url_to_comments(detail_url):
     """Ссылка на блок комментариев страницы новости."""
     return detail_url + '#comments'
+
+
+@pytest.fixture
+def home_url():
+    """Ссылка на главную страницу."""
+    return reverse('news:home')
+
+
+@pytest.fixture
+def login_url():
+    """Ссылка на страницу входа."""
+    return reverse('users:login')
+
+
+@pytest.fixture
+def signup_url():
+    """Ссылка на страницу регистрации."""
+    return reverse('users:signup')
+
+
+@pytest.fixture
+def logout_url():
+    """Ссылка на страницу выхода."""
+    return reverse('users:logout')
+
+
+@pytest.fixture
+def edit_comment_url(comment):
+    """Ссылка на редактирование комментария."""
+    return reverse('news:edit', args=(comment.id,))
+
+
+@pytest.fixture
+def delete_comment_url(comment):
+    """Ссылка на удаление комментария."""
+    return reverse('news:delete', args=(comment.id,))
